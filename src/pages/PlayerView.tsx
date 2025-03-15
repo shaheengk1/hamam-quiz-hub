@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft } from 'lucide-react';
@@ -9,7 +9,17 @@ import { useGame } from '@/contexts/GameContext';
 
 const PlayerView = () => {
   const navigate = useNavigate();
-  const { selectedQuestionId } = useGame();
+  const { 
+    selectedQuestionId, 
+    answeredQuestions, 
+    role, 
+    setRole 
+  } = useGame();
+
+  // Set the role to 'player' when this component mounts
+  useEffect(() => {
+    setRole('player');
+  }, [setRole]);
 
   return (
     <div className="min-h-screen bg-gray-50 p-4">
@@ -25,6 +35,9 @@ const PlayerView = () => {
               <ArrowLeft className="h-5 w-5" />
             </Button>
             <h1 className="text-3xl font-bold">Hamam Quiz Game</h1>
+          </div>
+          <div className="bg-blue-100 px-4 py-2 rounded-full">
+            <span className="font-medium text-blue-800">Player View</span>
           </div>
         </header>
         

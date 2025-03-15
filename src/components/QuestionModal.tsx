@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
-import { X } from 'lucide-react';
+import { X, CheckCircle, XCircle, Clock } from 'lucide-react';
 import { useGame } from '@/contexts/GameContext';
 import Timer from './Timer';
 
@@ -21,6 +21,7 @@ const QuestionModal: React.FC = () => {
   } = useGame();
   
   const [selectedTeam, setSelectedTeam] = useState<string | null>(null);
+  const [isTimerRunning, setIsTimerRunning] = useState(true);
   const modalRef = useRef<HTMLDivElement>(null);
 
   const question = selectedQuestionId !== null
@@ -32,13 +33,16 @@ const QuestionModal: React.FC = () => {
     setSelectedAnswer(null);
     setRevealAnswer(false);
     setSelectedTeam(null);
+    setIsTimerRunning(true);
   }, [selectedQuestionId, setSelectedAnswer, setRevealAnswer]);
   
   // Handle clicking outside to close
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (modalRef.current && !modalRef.current.contains(e.target as Node)) {
-        closeQuestion();
+        if (role !== 'player') {
+          closeQuestion();
+        }
       }
     };
     
@@ -46,7 +50,7 @@ const QuestionModal: React.FC = () => {
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [closeQuestion]);
+  }, [closeQuestion, role]);
 
   if (!question) return null;
 
@@ -59,6 +63,7 @@ const QuestionModal: React.FC = () => {
   const handleRevealAnswer = () => {
     if (role !== 'player') {
       setRevealAnswer(true);
+      setIsTimerRunning(false);
     }
   };
 
@@ -67,9 +72,21 @@ const QuestionModal: React.FC = () => {
       const question = questions.find(q => q.id === selectedQuestionId);
       if (question) {
         updateTeamScore(selectedTeam, question.points);
-        closeQuestion();
       }
     }
+  };
+
+  const handleRemovePoints = () => {
+    if (selectedTeam && selectedQuestionId !== null) {
+      const question = questions.find(q => q.id === selectedQuestionId);
+      if (question) {
+        updateTeamScore(selectedTeam, -question.points);
+      }
+    }
+  };
+
+  const toggleTimer = () => {
+    setIsTimerRunning(!isTimerRunning);
   };
 
   return (
@@ -80,20 +97,25 @@ const QuestionModal: React.FC = () => {
       >
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-2xl font-bold">{question.category}</h2>
-          <Button 
-            variant="ghost" 
-            size="icon"
-            onClick={closeQuestion}
-            className="rounded-full"
-          >
-            <X className="h-6 w-6" />
-          </Button>
+          {role !== 'player' && (
+            <Button 
+              variant="ghost" 
+              size="icon"
+              onClick={closeQuestion}
+              className="rounded-full"
+            >
+              <X className="h-6 w-6" />
+            </Button>
+          )}
         </div>
 
-        {/* Timer */}
+        {/* Timer - visible to host only */}
         {role !== 'player' && (
           <div className="mb-6">
-            <Timer duration={timerDuration} isRunning={!revealAnswer} />
+            <Timer 
+              duration={timerDuration} 
+              isRunning={isTimerRunning} 
+            />
           </div>
         )}
         
@@ -104,20 +126,28 @@ const QuestionModal: React.FC = () => {
             {question.options.map((option, index) => (
               <div
                 key={index}
-                className={`answer-option ${
+                className={`p-4 border rounded-lg cursor-pointer transition-all duration-200 ${
                   revealAnswer
                     ? index === question.correctAnswer
-                      ? 'correct'
+                      ? 'bg-green-100 border-green-500 text-green-800'
                       : selectedAnswer === index
-                      ? 'incorrect'
-                      : ''
-                    : selectedAnswer === index
-                    ? 'bg-blue-100'
-                    : ''
+                      ? 'bg-red-100 border-red-500 text-red-800'
+                      : 'bg-white'
+                    : selectedAnswer === index && role !== 'player'
+                    ? 'bg-blue-100 border-blue-500'
+                    : 'bg-white hover:border-blue-300'
                 }`}
                 onClick={() => handleAnswerClick(index)}
               >
-                {option}
+                <div className="flex items-center">
+                  {revealAnswer && index === question.correctAnswer && (
+                    <CheckCircle className="h-5 w-5 text-green-600 mr-2" />
+                  )}
+                  {revealAnswer && selectedAnswer === index && index !== question.correctAnswer && (
+                    <XCircle className="h-5 w-5 text-red-600 mr-2" />
+                  )}
+                  <span>{option}</span>
+                </div>
               </div>
             ))}
           </div>
@@ -126,14 +156,28 @@ const QuestionModal: React.FC = () => {
         {/* Controls - only shown to host/admin */}
         {role !== 'player' && (
           <div className="flex flex-wrap justify-between items-center gap-4">
-            <div className="flex items-center gap-4">
+            <div className="flex flex-wrap items-center gap-4">
               {!revealAnswer ? (
-                <Button onClick={handleRevealAnswer} disabled={selectedAnswer === null}>
-                  Reveal Answer
-                </Button>
+                <>
+                  <Button 
+                    onClick={handleRevealAnswer} 
+                    disabled={selectedAnswer === null}
+                    variant="default"
+                  >
+                    Reveal Answer
+                  </Button>
+                  <Button 
+                    onClick={toggleTimer} 
+                    variant="outline"
+                    className="flex items-center gap-2"
+                  >
+                    <Clock className="h-4 w-4" />
+                    {isTimerRunning ? 'Pause Timer' : 'Resume Timer'}
+                  </Button>
+                </>
               ) : (
                 <>
-                  {/* Team selection and award points */}
+                  {/* Team selection and award/remove points */}
                   <div className="flex flex-wrap gap-4 items-center">
                     <select
                       className="border rounded p-2"
@@ -151,8 +195,19 @@ const QuestionModal: React.FC = () => {
                     <Button 
                       onClick={handleAwardPoints}
                       disabled={!selectedTeam}
+                      variant="default"
+                      className="bg-green-600 hover:bg-green-700"
                     >
                       Award {question.points} Points
+                    </Button>
+
+                    <Button 
+                      onClick={handleRemovePoints}
+                      disabled={!selectedTeam}
+                      variant="default"
+                      className="bg-red-600 hover:bg-red-700"
+                    >
+                      Remove {question.points} Points
                     </Button>
                   </div>
                 </>
